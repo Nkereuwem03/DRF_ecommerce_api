@@ -1,0 +1,7 @@
+Hi {{ full_name }},
+
+Your OTP is: {{ otp }}.
+
+It expires in {{ expiry_mins }} minutes.
+
+Thank you for using {{ app_name }}.

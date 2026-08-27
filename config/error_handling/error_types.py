@@ -1,0 +1,8 @@
+VALIDATION_ERROR = "validation_error"
+AUTHENTICATION_ERROR = "authentication_error"
+AUTHORIZATION_ERROR = "authorization_error"
+CONFLICT_ERROR = "conflict_error"
+NOT_FOUND_ERROR = "not_found_error"
+RATE_LIMIT_ERROR = "rate_limit_error"
+SERVER_ERROR = "server_error"
+BUSINESS_ERROR = "business_error"
