@@ -58,7 +58,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["email"] = user.email
         token["is_staff"] = user.is_staff
         token["is_email_verified"] = user.is_email_verified
-        token["account_status"] = user.account_status
         return token
 
 

@@ -14,7 +14,7 @@ OTP_EMAIL_CONFIG = {
     },
     Token.Purpose.PASSWORD_RESET: {
         "subject": "Your password reset code",
-        "template": "emails/password_reset_otp.html",
+        "template": "",
         "expiry": 10,
     },
 }
@@ -92,3 +92,20 @@ def send_otp_email(
             exc=exc,
             countdown=60,
         )
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+)
+def cleanup_expired_tokens(self):
+    expired_tokens = Token.objects.filter(
+        status=Token.Status.PENDING,
+        created_at__lt=timezone.now() - timezone.timedelta(minutes=60),
+    )
+
+    count = expired_tokens.count()
+
+    if count > 0:
+        expired_tokens.update(status=Token.Status.EXPIRED)
+
+    return f"Cleaned up {count} expired tokens."

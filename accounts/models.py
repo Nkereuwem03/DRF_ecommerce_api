@@ -69,15 +69,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def unlock_account(self):
         self.failed_login_attempts = 0
         self.account_locked_until = None
-        if self.account_status == self.AccountStatus.SUSPENDED:
-            self.account_status = self.AccountStatus.ACTIVE
-        self.save(
-            update_fields=[
-                "failed_login_attempts",
-                "account_locked_until",
-                "account_status",
-            ]
-        )
+        self.save(update_fields=["failed_login_attempts", "account_locked_until"])
 
     def record_failed_login(self):
         self.failed_login_attempts += 1
@@ -87,11 +79,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.save(update_fields=["failed_login_attempts"])
 
     def can_login(self):
-        return (
-            self.is_active
-            and self.account_status == self.AccountStatus.ACTIVE
-            and not self.is_account_locked()
-        )
+        return self.is_active and not self.is_account_locked()
 
 
 class Token(models.Model):

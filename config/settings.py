@@ -163,7 +163,7 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
-    "EXCEPTION_HANDLER": "core.error_handling.exceptions.custom_exception_handler",
+    "EXCEPTION_HANDLER": "config.error_handling.exceptions.custom_exception_handler",
 }
 
 REDIS_URL = os.environ["REDIS_URL"]

@@ -16,16 +16,10 @@ class AuthService:
     @transaction.atomic
     def register(email: str, password: str) -> User:
         try:
-            user = User.objects.create_user(
-                email=email,
-                password=password,
-            )
-
+            user = User.objects.create_user(email=email, password=password)
         except IntegrityError:
             raise ValidationError(
-                {
-                    "email": "An account with this email already exists.",
-                },
+                {"email": "An account with this email already exists."},
                 code="email_already_exists",
             )
 
@@ -44,35 +38,18 @@ class AuthService:
 
     @staticmethod
     def verify_email(email: str, otp: str) -> User:
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            raise ValidationError("Invalid email or OTP.", code="invalid_credentials")
-
-        if not OTPService.verify_otp(
-            email=email,
-            otp=otp,
-            purpose=Token.Purpose.SIGN_UP_VERIFICATION,
-        ):
-            raise ValidationError("Invalid email or OTP.", code="invalid_credentials")
-
-        user.email_verified = True
-        user.save(update_fields=["email_verified"])
-
-        return user
+        return OTPService.verify_sign_up_otp(email=email, otp=otp)
 
     @staticmethod
     def login(email: str, password: str) -> dict:
         email = email.strip().lower()
 
         user = User.objects.filter(email=email).first()
-
         authenticated_user = authenticate(email=email, password=password)
 
         if authenticated_user is None:
             if user is not None:
                 user.record_failed_login()
-
             raise ValidationError(
                 "No active account found with the given credentials",
                 code="no_active_account",
