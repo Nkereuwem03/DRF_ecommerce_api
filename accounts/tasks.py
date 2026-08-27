@@ -93,6 +93,7 @@ def send_otp_email(
             countdown=60,
         )
 
+    
 @shared_task(
     bind=True,
     max_retries=3,
@@ -100,7 +101,7 @@ def send_otp_email(
 def cleanup_expired_tokens(self):
     expired_tokens = Token.objects.filter(
         status=Token.Status.PENDING,
-        created_at__lt=timezone.now() - timezone.timedelta(minutes=60),
+        expires_at__lt=timezone.now(),
     )
 
     count = expired_tokens.count()
