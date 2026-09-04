@@ -20,7 +20,10 @@ def api_response(
     else:
         payload["errors"] = errors if errors is not None else []
 
-    return Response(payload, status=status_code)
+    return Response(
+        payload,
+        status=status_code,
+    )
 
 
 def success_response(

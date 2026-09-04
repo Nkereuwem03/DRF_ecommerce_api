@@ -14,10 +14,11 @@ OTP_EMAIL_CONFIG = {
     },
     Token.Purpose.PASSWORD_RESET: {
         "subject": "Your password reset code",
-        "template": "",
-        "expiry": 10,
+        "template": "emails/password_reset_otp.html",
+        "expiry": 15,
     },
 }
+
 
 @shared_task(
     bind=True,
@@ -43,7 +44,7 @@ def send_otp_email(
     app_name = getattr(
         settings,
         "APP_NAME",
-        "ecommerce API",
+        "Ecommerce API",
     )
 
     context = {
@@ -93,7 +94,7 @@ def send_otp_email(
             countdown=60,
         )
 
-    
+
 @shared_task(
     bind=True,
     max_retries=3,

@@ -11,12 +11,23 @@ from .managers import UserManager
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+    class AccountStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        SUSPENDED = "suspended", "Suspended"
+        BANNED = "banned", "Banned"
+        PENDING_VERIFICATION = "pending_verification", "Pending Verification"
+
     objects = UserManager()
 
     MAX_LOGIN_ATTEMPTS = 5
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(_("email address"), unique=True, max_length=254)
+    account_status = models.CharField(
+        max_length=30,
+        choices=AccountStatus.choices,
+        default=AccountStatus.PENDING_VERIFICATION,
+    )
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -48,6 +59,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     def save(self, *args, **kwargs):
         if self.email:
             self.email = self.email.strip().lower()
+        if not self.account_status:
+            self.account_status = self.AccountStatus.PENDING_VERIFICATION
         super().save(*args, **kwargs)
 
     def get_full_name(self):

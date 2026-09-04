@@ -32,23 +32,44 @@ from config.error_handling.response import error_response
 
 logger = logging.getLogger(__name__)
 
-# Known DRF exceptions that deserve their own type/code,
-# instead of being flattened into a generic validation error.
+
 EXCEPTION_TYPE_MAP = {
-    NotAuthenticated: (AUTHENTICATION_ERROR, INVALID_CREDENTIALS),
-    AuthenticationFailed: (AUTHENTICATION_ERROR, INVALID_CREDENTIALS),
-    PermissionDenied: (AUTHORIZATION_ERROR, PERMISSION_DENIED),
-    NotFound: (NOT_FOUND_ERROR, RESOURCE_NOT_FOUND),
-    Throttled: (RATE_LIMIT_ERROR, RATE_LIMIT_EXCEEDED),
+    NotAuthenticated: (
+        AUTHENTICATION_ERROR,
+        INVALID_CREDENTIALS,
+    ),
+    AuthenticationFailed: (
+        AUTHENTICATION_ERROR,
+        INVALID_CREDENTIALS,
+    ),
+    PermissionDenied: (
+        AUTHORIZATION_ERROR,
+        PERMISSION_DENIED,
+    ),
+    NotFound: (
+        NOT_FOUND_ERROR,
+        RESOURCE_NOT_FOUND,
+    ),
+    Throttled: (
+        RATE_LIMIT_ERROR,
+        RATE_LIMIT_EXCEEDED,
+    ),
 }
 
-REQUIRED_CODES = {"required", "null", "blank"}
+
+REQUIRED_CODES = {
+    "required",
+    "null",
+    "blank",
+}
 
 
 def _resolve_code(detail) -> str:
     drf_code = getattr(detail, "code", None)
+
     if drf_code in REQUIRED_CODES:
         return REQUIRED
+
     return INVALID
 
 
@@ -58,13 +79,26 @@ def _flatten_errors(data, field_path=None) -> list:
     if isinstance(data, dict):
         for field, detail in data.items():
             path = f"{field_path}.{field}" if field_path else field
-            errors.extend(_flatten_errors(detail, path))
+
+            errors.extend(
+                _flatten_errors(
+                    detail,
+                    path,
+                )
+            )
 
     elif isinstance(data, list):
         for index, item in enumerate(data):
             if isinstance(item, (dict, list)):
                 path = f"{field_path}[{index}]" if field_path else str(index)
-                errors.extend(_flatten_errors(item, path))
+
+                errors.extend(
+                    _flatten_errors(
+                        item,
+                        path,
+                    )
+                )
+
             else:
                 errors.append(
                     build_error(
@@ -89,11 +123,21 @@ def _flatten_errors(data, field_path=None) -> list:
 
 
 def custom_exception_handler(exc, context):
-    response = exception_handler(exc, context)
 
-    # Case 1: totally unknown exception, DRF couldn't classify it at all.
+    response = exception_handler(
+        exc,
+        context,
+    )
+
+    # -----------------------------------------
+    # Unknown / unhandled exception
+    # -----------------------------------------
+
     if response is None:
-        logger.exception("Unhandled exception")
+        logger.exception(
+            "Unhandled exception",
+        )
+
         return error_response(
             message="Internal server error",
             errors=[
@@ -106,14 +150,26 @@ def custom_exception_handler(exc, context):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    # Case 2: known special case (not logged in, not allowed, not found, throttled).
-    for exc_class, (error_type, error_code) in EXCEPTION_TYPE_MAP.items():
+    # -----------------------------------------
+    # Special DRF exceptions
+    # -----------------------------------------
+
+    for (
+        exc_class,
+        (error_type, error_code),
+    ) in EXCEPTION_TYPE_MAP.items():
         if isinstance(exc, exc_class):
             message = (
-                str(response.data.get("detail", exc.default_detail))
+                str(
+                    response.data.get(
+                        "detail",
+                        exc.default_detail,
+                    )
+                )
                 if isinstance(response.data, dict)
                 else str(exc)
             )
+
             return error_response(
                 message=message,
                 errors=[
@@ -126,8 +182,13 @@ def custom_exception_handler(exc, context):
                 status_code=response.status_code,
             )
 
-    # Case 3: everything else, normal serializer/field validation errors.
-    errors = _flatten_errors(response.data)
+    # -----------------------------------------
+    # Serializer / validation errors
+    # -----------------------------------------
+
+    errors = _flatten_errors(
+        response.data,
+    )
 
     return error_response(
         message="Request failed",

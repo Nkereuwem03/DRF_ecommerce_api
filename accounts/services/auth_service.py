@@ -13,6 +13,17 @@ from .otp.service import OTPService
 
 class AuthService:
     @staticmethod
+    def _verify_account_can_authenticate(user: User) -> None:
+        if not user.is_active:
+            raise InvalidToken("Account is deactivated")
+
+        if user.account_status in {
+            User.AccountStatus.SUSPENDED,
+            User.AccountStatus.BANNED,
+        }:
+            raise InvalidToken("Account is not allowed to authenticate")
+
+    @staticmethod
     @transaction.atomic
     def register(email: str, password: str) -> User:
         try:
@@ -33,6 +44,76 @@ class AuthService:
             otp=otp,
             purpose=Token.Purpose.SIGN_UP_VERIFICATION,
         )
+
+        return user
+
+    @staticmethod
+    @transaction.atomic
+    def request_password_reset(email: str) -> str:
+        normalized_email = email.strip().lower()
+        user = User.objects.filter(email=normalized_email).first()
+
+        if user is None:
+            raise ValidationError(
+                "No account found with this email.",
+                code="email_not_found",
+            )
+
+        otp = OTPService.create_otp_token(
+            user=user,
+            purpose=Token.Purpose.PASSWORD_RESET,
+        )
+
+        send_otp_email.delay_on_commit(
+            email=user.email,
+            otp=otp,
+            purpose=Token.Purpose.PASSWORD_RESET,
+        )
+
+        return otp
+
+    @staticmethod
+    @transaction.atomic
+    def reset_password(email: str, otp: str, new_password: str) -> User:
+        normalized_email = email.strip().lower()
+        user = User.objects.filter(email=normalized_email).first()
+
+        if user is None:
+            raise ValidationError(
+                "No account found with this email.",
+                code="email_not_found",
+            )
+
+        OTPService.verify_password_reset_otp(email=normalized_email, otp=otp)
+
+        reset_token = (
+            Token.objects.filter(
+                user=user,
+                purpose=Token.Purpose.PASSWORD_RESET,
+                status=Token.Status.VERIFIED,
+            )
+            .order_by("-verified_at")
+            .first()
+        )
+
+        if reset_token is None:
+            raise ValidationError(
+                "Password reset request not found.",
+                code="password_reset_not_found",
+            )
+
+        if reset_token.is_reset_token_expired():
+            raise ValidationError(
+                "Password reset token has expired.",
+                code="reset_token_expired",
+            )
+
+        user.set_password(new_password)
+        user.account_status = User.AccountStatus.ACTIVE
+        user.save(update_fields=["password", "account_status"])
+
+        reset_token.status = Token.Status.EXPIRED
+        reset_token.save(update_fields=["status"])
 
         return user
 
@@ -59,6 +140,15 @@ class AuthService:
             raise ValidationError(
                 "Account temporarily locked due to failed login attempts. Please try again later.",
                 code="account_locked",
+            )
+
+        if authenticated_user.account_status in {
+            User.AccountStatus.SUSPENDED,
+            User.AccountStatus.BANNED,
+        }:
+            raise ValidationError(
+                "Account is not allowed to authenticate",
+                code="account_not_allowed",
             )
 
         if not authenticated_user.is_email_verified:
@@ -91,8 +181,7 @@ class AuthService:
         if user is None:
             raise InvalidToken("User no longer exists")
 
-        if not user.is_active:
-            raise InvalidToken("Account is deactivated")
+        AuthService._verify_account_can_authenticate(user)
 
         data = {"access": str(token.access_token)}
 
