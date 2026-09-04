@@ -1,8 +1,10 @@
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
-from config.error_handling.response import success_response
+from config.error_handling.response import (
+    error_response,
+    success_response,
+)
 
 from ..permissions import IsAuthenticatedReadOnlyOrAdmin
 from ..serializers import CategorySerializer
@@ -37,16 +39,23 @@ class CategoryListCreateView(APIView):
             raise_exception=True,
         )
 
-        category = CategoryService.create_category(
-            name=serializer.validated_data["name"],
-            description=serializer.validated_data.get(
-                "description",
-                "",
-            ),
-            parent=serializer.validated_data.get(
-                "parent",
-            ),
-        )
+        try:
+            category = CategoryService.create_category(
+                name=serializer.validated_data["name"],
+                description=serializer.validated_data.get(
+                    "description",
+                    "",
+                ),
+                parent=serializer.validated_data.get(
+                    "parent",
+                ),
+            )
+        except ValueError as exc:
+            return error_response(
+                message=str(exc),
+                data={},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         return success_response(
             message="Category created successfully.",
@@ -65,7 +74,9 @@ class CategoryDetailView(APIView):
             category_id=category_id,
         )
 
-        serializer = CategorySerializer(category)
+        serializer = CategorySerializer(
+            category,
+        )
 
         return success_response(
             message="Category retrieved successfully.",
@@ -83,10 +94,17 @@ class CategoryDetailView(APIView):
             raise_exception=True,
         )
 
-        category = CategoryService.update_category(
-            category_id=category_id,
-            **serializer.validated_data,
-        )
+        try:
+            category = CategoryService.update_category(
+                category_id=category_id,
+                **serializer.validated_data,
+            )
+        except ValueError as exc:
+            return error_response(
+                message=str(exc),
+                data={},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         return success_response(
             message="Category updated successfully.",
@@ -95,19 +113,27 @@ class CategoryDetailView(APIView):
         )
 
     def delete(self, request, category_id):
-        CategoryService.delete_category(
-            category_id=category_id,
-        )
+        try:
+            CategoryService.delete_category(
+                category_id=category_id,
+            )
+        except ValueError as exc:
+            return error_response(
+                message=str(exc),
+                data={},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         return success_response(
             message="Category deleted successfully.",
+            data={},
             status_code=status.HTTP_200_OK,
         )
 
 
 class CategoryChildrenListView(APIView):
     permission_classes = [
-        IsAuthenticated,
+        IsAuthenticatedReadOnlyOrAdmin,
     ]
 
     def get(self, request, category_id):

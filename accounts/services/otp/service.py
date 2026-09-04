@@ -23,6 +23,7 @@ from .verification import (
 
 class OTPService:
     @classmethod
+    @transaction.atomic
     def create_otp_token(
         cls,
         user: User,
@@ -30,15 +31,29 @@ class OTPService:
         otp_length: int = OTPPolicy.OTP_LENGTH,
     ) -> str:
 
+        user = User.objects.select_for_update().get(
+            pk=user.pk,
+        )
+
         verify_account_locked(user)
-        verify_resend_abuse(user, purpose)
+
+        verify_resend_abuse(
+            user,
+            purpose,
+        )
+
         verify_resend_cooldown(
             user.email,
             purpose,
         )
 
-        otp = generate_otp(otp_length)
-        otp_hash = hash_otp(otp)
+        otp = generate_otp(
+            otp_length,
+        )
+
+        otp_hash = hash_otp(
+            otp,
+        )
 
         now = timezone.now()
 
@@ -56,7 +71,12 @@ class OTPService:
             token=otp_hash,
             purpose=purpose,
             status=Token.Status.PENDING,
-            expires_at=now + timedelta(seconds=OTPPolicy.OTP_TTL),
+            expires_at=(
+                now
+                + timedelta(
+                    seconds=OTPPolicy.OTP_TTL,
+                )
+            ),
         )
 
         transaction.on_commit(
@@ -74,18 +94,25 @@ class OTPService:
         purpose: str,
     ):
         cache.set(
-            resend_key(email, purpose),
+            resend_key(
+                email,
+                purpose,
+            ),
             True,
             timeout=OTPPolicy.RESEND_COOLDOWN,
         )
 
         cache.set(
-            attempt_key(email, purpose),
+            attempt_key(
+                email,
+                purpose,
+            ),
             0,
             timeout=OTPPolicy.OTP_TTL,
         )
 
     @classmethod
+    @transaction.atomic
     def verify_otp(
         cls,
         email: str,
@@ -93,17 +120,28 @@ class OTPService:
         purpose: str,
     ) -> Token:
 
-        user = cls._get_user(email)
+        user = cls._get_user(
+            email,
+        )
 
-        verify_account_locked(user)
+        user = User.objects.select_for_update().get(
+            pk=user.pk,
+        )
+
+        verify_account_locked(
+            user,
+        )
 
         token = (
-            Token.objects.filter(
+            Token.objects.select_for_update()
+            .filter(
                 user=user,
                 purpose=purpose,
                 status=Token.Status.PENDING,
             )
-            .order_by("-created_at")
+            .order_by(
+                "-created_at",
+            )
             .first()
         )
 
@@ -136,7 +174,9 @@ class OTPService:
             )
 
             if attempts >= OTPPolicy.MAX_VERIFY_ATTEMPTS:
-                user.lock_account(duration=OTPPolicy.ACCOUNT_LOCK_DURATION)
+                user.lock_account(
+                    duration=OTPPolicy.ACCOUNT_LOCK_DURATION,
+                )
 
                 cleanup_attempts(
                     email,
@@ -155,8 +195,7 @@ class OTPService:
                 code="invalid_otp",
             )
 
-        with transaction.atomic():
-            token.mark_verified()
+        token.mark_verified()
 
         cleanup_attempts(
             email,
@@ -166,6 +205,7 @@ class OTPService:
         return token
 
     @classmethod
+    @transaction.atomic
     def verify_sign_up_otp(
         cls,
         email: str,
@@ -178,24 +218,26 @@ class OTPService:
             purpose=Token.Purpose.SIGN_UP_VERIFICATION,
         )
 
-        user = token.user
+        user = User.objects.select_for_update().get(
+            pk=token.user_id,
+        )
 
-        with transaction.atomic():
-            user.unlock_account()
+        user.unlock_account()
 
-            user.is_email_verified = True
-            user.email_verified_at = timezone.now()
+        user.is_email_verified = True
+        user.email_verified_at = timezone.now()
 
-            user.save(
-                update_fields=[
-                    "is_email_verified",
-                    "email_verified_at",
-                ]
-            )
+        user.save(
+            update_fields=[
+                "is_email_verified",
+                "email_verified_at",
+            ],
+        )
 
         return user
 
     @classmethod
+    @transaction.atomic
     def verify_password_reset_otp(
         cls,
         email: str,
@@ -208,19 +250,31 @@ class OTPService:
             purpose=Token.Purpose.PASSWORD_RESET,
         )
 
-        reset_token = secrets.token_urlsafe(32)
+        reset_token = secrets.token_urlsafe(
+            32,
+        )
 
         token.set_reset_token(
             reset_token=reset_token,
-            expires_at=timezone.now() + timedelta(seconds=OTPPolicy.PASSWORD_RESET_TTL),
+            expires_at=(
+                timezone.now()
+                + timedelta(
+                    seconds=OTPPolicy.PASSWORD_RESET_TTL,
+                )
+            ),
         )
 
         return reset_token
 
     @staticmethod
-    def _get_user(email: str) -> User:
+    def _get_user(
+        email: str,
+    ) -> User:
+
         try:
-            return User.objects.get(email=email)
+            return User.objects.get(
+                email=email.strip().lower(),
+            )
         except User.DoesNotExist:
             raise ValidationError(
                 "Invalid email or OTP.",

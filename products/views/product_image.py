@@ -19,12 +19,24 @@ from ..services.product_image import ProductImageService
 
 class ProductImageListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = ProductImageSerializer
-    permission_classes = [IsAuthenticatedReadOnlyOrAdmin]
-    filter_backends = [DjangoFilterBackend]
+
+    permission_classes = [
+        IsAuthenticatedReadOnlyOrAdmin,
+    ]
+
+    filter_backends = [
+        DjangoFilterBackend,
+    ]
+
     filterset_class = ProductImageFilter
 
     def get_queryset(self):
-        return ProductImage.objects.filter(product_id=self.kwargs["product_id"])
+        return ProductImage.objects.filter(
+            product_id=self.kwargs["product_id"],
+            product__is_active=True,
+        ).select_related(
+            "product",
+        )
 
     def create(self, request, *args, **kwargs):
         product = Product.objects.filter(
@@ -39,8 +51,13 @@ class ProductImageListCreateAPIView(generics.ListCreateAPIView):
                 status_code=status.HTTP_404_NOT_FOUND,
             )
 
-        serializer = ProductImageCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        serializer = ProductImageCreateSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
 
         try:
             images = ProductImageService.create_images(
@@ -64,18 +81,31 @@ class ProductImageListCreateAPIView(generics.ListCreateAPIView):
         )
 
 
-class ProductImageRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
+class ProductImageRetrieveUpdateDestroyAPIView(
+    generics.RetrieveUpdateDestroyAPIView,
+):
     serializer_class = ProductImageSerializer
-    permission_classes = [IsAuthenticatedReadOnlyOrAdmin]
+
+    permission_classes = [
+        IsAuthenticatedReadOnlyOrAdmin,
+    ]
+
     lookup_url_kwarg = "image_id"
 
     def get_queryset(self):
-        return ProductImage.objects.filter(product_id=self.kwargs["product_id"])
+        return ProductImage.objects.filter(
+            product_id=self.kwargs["product_id"],
+            product__is_active=True,
+        ).select_related(
+            "product",
+        )
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
 
-        serializer = self.get_serializer(instance)
+        serializer = self.get_serializer(
+            instance,
+        )
 
         return success_response(
             message="Product image retrieved successfully.",
@@ -84,7 +114,10 @@ class ProductImageRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPI
         )
 
     def update(self, request, *args, **kwargs):
-        partial = kwargs.pop("partial", False)
+        partial = kwargs.pop(
+            "partial",
+            False,
+        )
 
         instance = self.get_object()
 
@@ -93,7 +126,10 @@ class ProductImageRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPI
             data=request.data,
             partial=partial,
         )
-        serializer.is_valid(raise_exception=True)
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
 
         try:
             updated_image = ProductImageService.update_image(
@@ -109,7 +145,9 @@ class ProductImageRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPI
 
         return success_response(
             message="Product image updated successfully.",
-            data=ProductImageSerializer(updated_image).data,
+            data=ProductImageSerializer(
+                updated_image,
+            ).data,
             status_code=status.HTTP_200_OK,
         )
 

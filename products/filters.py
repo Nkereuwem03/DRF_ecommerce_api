@@ -42,13 +42,24 @@ class ProductFilter(django_filters.FilterSet):
         field_name="categories__id",
     )
 
-    def filter_in_stock(self, queryset, name, value):
+    def filter_in_stock(
+        self,
+        queryset,
+        name,
+        value,
+    ):
         if value:
-            return queryset.filter(stock__gt=0)
-        return queryset.filter(stock=0)
+            return queryset.filter(
+                stock__gt=0,
+            )
+
+        return queryset.filter(
+            stock=0,
+        )
 
     class Meta:
         model = Product
+
         fields = [
             "name",
             "min_price",
@@ -65,13 +76,10 @@ class ProductImageFilter(django_filters.FilterSet):
     is_primary = django_filters.BooleanFilter(
         field_name="is_primary",
     )
-    product_id = django_filters.UUIDFilter(
-        field_name="product__id",
-    )
 
     class Meta:
         model = ProductImage
+
         fields = [
-            "product_id",
             "is_primary",
         ]

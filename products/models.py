@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import models
+from django.db.models.functions import Lower
 
 
 class TimeStampedModel(models.Model):
@@ -33,7 +34,6 @@ class Category(TimeStampedModel):
 
     name = models.CharField(
         max_length=255,
-        unique=True,
     )
 
     slug = models.SlugField(
@@ -67,6 +67,24 @@ class Category(TimeStampedModel):
                 fields=[
                     "is_active",
                 ],
+            ),
+        ]
+
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"),
+                condition=models.Q(
+                    parent__isnull=True,
+                ),
+                name="unique_root_category_name_ci",
+            ),
+            models.UniqueConstraint(
+                Lower("name"),
+                "parent",
+                condition=models.Q(
+                    parent__isnull=False,
+                ),
+                name="unique_child_category_name_ci",
             ),
         ]
 

@@ -20,7 +20,9 @@ class ProductImageNestedSerializer(serializers.ModelSerializer):
 
 class CategorySerializer(serializers.ModelSerializer):
     parent = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.filter(is_active=True),
+        queryset=Category.objects.filter(
+            is_active=True,
+        ),
         required=False,
         allow_null=True,
         error_messages={
@@ -63,7 +65,10 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     categories = serializers.PrimaryKeyRelatedField(
         many=True,
-        queryset=Category.objects.filter(is_active=True),
+        required=True,
+        queryset=Category.objects.filter(
+            is_active=True,
+        ),
         error_messages={
             "does_not_exist": "Category with this ID does not exist.",
             "incorrect_type": "Category ID must be a valid UUID.",
@@ -99,6 +104,14 @@ class ProductSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def validate_name(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError("Product name cannot be empty.")
+
+        return value
 
     def validate_categories(self, value):
         if not value:

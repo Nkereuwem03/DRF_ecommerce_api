@@ -8,7 +8,10 @@ from rest_framework_simplejwt.exceptions import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from config.error_handling.response import error_response, success_response
+from config.error_handling.response import (
+    error_response,
+    success_response,
+)
 
 from .serializers import (
     LoginSerializer,
@@ -21,12 +24,21 @@ from .services.auth_service import AuthService
 
 
 class RegisterView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [
+        AllowAny,
+    ]
 
-    def post(self, request):
-        serializer = RegistrationSerializer(data=request.data)
+    def post(
+        self,
+        request,
+    ):
+        serializer = RegistrationSerializer(
+            data=request.data,
+        )
 
-        serializer.is_valid(raise_exception=True)
+        serializer.is_valid(
+            raise_exception=True,
+        )
 
         user = AuthService.register(
             email=serializer.validated_data["email"],
@@ -46,19 +58,30 @@ class RegisterView(APIView):
 
 
 class VerifyEmailView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [
+        AllowAny,
+    ]
 
-    def post(self, request):
-        serializer = VerifyEmailSerializer(data=request.data)
+    def post(
+        self,
+        request,
+    ):
+        serializer = VerifyEmailSerializer(
+            data=request.data,
+        )
 
-        serializer.is_valid(raise_exception=True)
+        serializer.is_valid(
+            raise_exception=True,
+        )
 
         user = AuthService.verify_email(
             email=serializer.validated_data["email"],
             otp=serializer.validated_data["otp"],
         )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = RefreshToken.for_user(
+            user,
+        )
 
         return success_response(
             message="Email verified successfully",
@@ -66,32 +89,51 @@ class VerifyEmailView(APIView):
                 "id": str(user.id),
                 "email": user.email,
                 "email_verified": True,
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
+                "access": str(
+                    refresh.access_token,
+                ),
+                "refresh": str(
+                    refresh,
+                ),
             },
             status_code=status.HTTP_200_OK,
         )
 
 
 class CustomTokenObtainPairView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [
+        AllowAny,
+    ]
+
     authentication_classes = []
 
-    def post(self, request):
-        serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+    def post(
+        self,
+        request,
+    ):
+        serializer = LoginSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
 
         try:
             result = AuthService.login(
                 email=serializer.validated_data["email"],
                 password=serializer.validated_data["password"],
             )
-        except ValidationError as e:
+        except ValidationError as exc:
             return error_response(
-                message=str(e.detail[0])
-                if isinstance(e.detail, list)
-                else str(e.detail),
-                errors={"code": e.get_codes()},
+                message=(
+                    str(exc.detail[0])
+                    if isinstance(exc.detail, list)
+                    else str(exc.detail)
+                ),
+                errors={
+                    "code": exc.get_codes(),
+                },
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
 
@@ -111,19 +153,34 @@ class CustomTokenObtainPairView(APIView):
 
 
 class CustomTokenRefreshView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [
+        AllowAny,
+    ]
+
     authentication_classes = []
 
-    def post(self, request):
-        serializer = TokenRefreshRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+    def post(
+        self,
+        request,
+    ):
+        serializer = TokenRefreshRequestSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
 
         try:
-            data = AuthService.refresh_token(serializer.validated_data["refresh"])
-        except InvalidToken as e:
+            data = AuthService.refresh_token(
+                serializer.validated_data["refresh"],
+            )
+        except InvalidToken as exc:
             return error_response(
-                message=str(e),
-                errors={"code": "token_not_valid"},
+                message=str(exc),
+                errors={
+                    "code": "token_not_valid",
+                },
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
 
@@ -135,37 +192,75 @@ class CustomTokenRefreshView(APIView):
 
 
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+    ]
 
-    def post(self, request):
-        refresh_token = request.data.get("refresh")
+    def post(
+        self,
+        request,
+    ):
+        refresh_token = request.data.get(
+            "refresh",
+        )
 
         if not refresh_token:
             return error_response(
                 message="Refresh token is required",
+                data={},
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            token = RefreshToken(refresh_token)
+            token = RefreshToken(
+                refresh_token,
+            )
+
+            token_user_id = str(
+                token.payload.get(
+                    "user_id",
+                )
+            )
+
+            request_user_id = str(
+                request.user.id,
+            )
+
+            if token_user_id != request_user_id:
+                return error_response(
+                    message="You cannot revoke another user's refresh token.",
+                    data={},
+                    status_code=status.HTTP_403_FORBIDDEN,
+                )
+
             token.blacklist()
-        except TokenError as e:
+
+        except TokenError as exc:
             return error_response(
-                message=f"Invalid refresh token: {e!s}",
+                message=f"Invalid refresh token: {exc!s}",
+                data={},
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
         return success_response(
             message="Successfully logged out",
+            data={},
             status_code=status.HTTP_205_RESET_CONTENT,
         )
 
 
 class MeView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+    ]
 
-    def get(self, request):
-        serializer = UserDetailSerializer(request.user)
+    def get(
+        self,
+        request,
+    ):
+        serializer = UserDetailSerializer(
+            request.user,
+        )
 
         return success_response(
             message="",
